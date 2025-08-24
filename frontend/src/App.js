@@ -173,8 +173,8 @@ const LoginForm = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
-    email: 'admin@vitacoin.com',
-    password: 'admin123'
+    email: '',
+    password: ''
   });
   const [loading, setLoading] = useState(false);
   const { login, register } = useAuth();
@@ -195,17 +195,17 @@ const LoginForm = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md p-8 shadow-2xl border-0 bg-white/90 backdrop-blur-sm">
-        <div className="text-center mb-8">
+      <Card className="w-full max-w-md p-6 sm:p-8 shadow-2xl border-0 bg-white/90 backdrop-blur-sm">
+        <div className="text-center mb-6 sm:mb-8">
           <div className="flex items-center justify-center mb-4">
             <div className="bg-gradient-to-r from-amber-400 to-orange-500 p-3 rounded-full">
               <Coins className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
             Vitacoin Rewards
           </h1>
-          <p className="text-gray-600 mt-2">
+          <p className="text-gray-600 mt-2 text-sm sm:text-base">
             {isLogin ? 'Welcome back!' : 'Join the rewards platform'}
           </p>
         </div>
@@ -249,16 +249,10 @@ const LoginForm = () => {
         <div className="mt-6 text-center">
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-amber-600 hover:text-amber-700 font-medium"
+            className="text-amber-600 hover:text-amber-700 font-medium text-sm sm:text-base"
           >
             {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
           </button>
-        </div>
-
-        <div className="mt-6 p-4 bg-amber-50 rounded-lg">
-          <p className="text-sm text-amber-800 font-medium">Demo Credentials:</p>
-          <p className="text-xs text-amber-700">Email: admin@vitacoin.com</p>
-          <p className="text-xs text-amber-700">Password: admin123</p>
         </div>
       </Card>
     </div>
