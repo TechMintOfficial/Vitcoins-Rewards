@@ -239,7 +239,13 @@ async def claim_daily_reward(current_user: User = Depends(get_current_user)):
     
     # Check if user can claim daily reward
     if current_user.last_daily_reward:
-        time_since_last = now - current_user.last_daily_reward
+        # Ensure timezone compatibility for datetime comparison
+        last_reward = current_user.last_daily_reward
+        if last_reward.tzinfo is None:
+            # Convert naive datetime to UTC timezone-aware
+            last_reward = last_reward.replace(tzinfo=timezone.utc)
+        
+        time_since_last = now - last_reward
         if time_since_last < timedelta(hours=24):
             hours_remaining = 24 - int(time_since_last.total_seconds() / 3600)
             return DailyRewardResponse(
