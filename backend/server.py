@@ -83,6 +83,8 @@ class User(BaseModel):
     badges: List[str] = []
     last_daily_reward: Optional[datetime] = None
     completed_tasks: List[str] = []  # List of completed task IDs
+    task_progress: Dict[str, Dict[str, Any]] = {}  # Track task progress
+    activity_log: List[Dict[str, Any]] = []  # Track user activities
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
@@ -103,6 +105,7 @@ class UserResponse(BaseModel):
     badges: List[str]
     last_daily_reward: Optional[datetime]
     completed_tasks: List[str]
+    task_progress: Dict[str, Dict[str, Any]]
     created_at: datetime
 
 class Task(BaseModel):
@@ -112,12 +115,29 @@ class Task(BaseModel):
     category: str  # "daily", "weekly", "achievement", "special"
     coins_reward: int
     difficulty: str = "easy"  # "easy", "medium", "hard"
-    requirements: Optional[Dict[str, Any]] = {}  # Custom requirements
+    requirements: Dict[str, Any] = {}  # Task requirements and activities
     active: bool = True
     max_completions: Optional[int] = None  # None for unlimited
     completion_count: int = 0
     expires_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TaskWithProgress(BaseModel):
+    id: str
+    title: str
+    description: str
+    category: str
+    coins_reward: int
+    difficulty: str
+    requirements: Dict[str, Any]
+    active: bool
+    max_completions: Optional[int]
+    completion_count: int
+    expires_at: Optional[datetime]
+    created_at: datetime
+    progress: Dict[str, Any] = {}  # User's progress on this task
+    can_claim: bool = False  # Whether user can claim this task
+    is_completed: bool = False  # Whether user has completed this task
 
 class TaskCreate(BaseModel):
     title: str
@@ -125,7 +145,7 @@ class TaskCreate(BaseModel):
     category: str
     coins_reward: int
     difficulty: str = "easy"
-    requirements: Optional[Dict[str, Any]] = {}
+    requirements: Dict[str, Any] = {}
     max_completions: Optional[int] = None
     expires_at: Optional[datetime] = None
 
@@ -171,6 +191,11 @@ class TaskCompletionResponse(BaseModel):
     coins_earned: Optional[int] = None
     new_balance: Optional[int] = None
 
+class ActivityLogEntry(BaseModel):
+    action: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    details: Dict[str, Any] = {}
+
 class LeaderboardEntry(BaseModel):
     id: str
     name: str
@@ -211,6 +236,115 @@ async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 # Helper functions
+async def log_user_activity(user_id: str, action: str, details: Dict[str, Any] = {}):
+    """Log user activity for task progress tracking"""
+    activity = ActivityLogEntry(action=action, details=details)
+    await db.users.update_one(
+        {"id": user_id},
+        {"$push": {"activity_log": activity.dict()}}
+    )
+
+async def check_task_requirements(user: User, task: Task) -> Dict[str, Any]:
+    """Check if user has met task requirements and return progress"""
+    progress = user.task_progress.get(task.id, {})
+    requirements = task.requirements
+    can_claim = False
+    
+    # Check different types of requirements
+    if task.title == "First Login":
+        # Automatically completed on login
+        can_claim = True
+        progress = {"status": "completed", "description": "You've logged in! Ready to claim."}
+    
+    elif task.title == "Profile Explorer":
+        # Check if user has viewed profile/transactions
+        viewed_profile = any(
+            activity.get("action") == "viewed_profile" 
+            for activity in user.activity_log[-20:]  # Check recent activities
+        )
+        viewed_transactions = any(
+            activity.get("action") == "viewed_transactions" 
+            for activity in user.activity_log[-20:]
+        )
+        
+        if viewed_profile and viewed_transactions:
+            can_claim = True
+            progress = {"status": "completed", "description": "You've explored your profile and transactions!"}
+        else:
+            needed = []
+            if not viewed_profile:
+                needed.append("View your profile")
+            if not viewed_transactions:
+                needed.append("Check your transaction history")
+            progress = {
+                "status": "in_progress", 
+                "description": f"Complete these actions: {', '.join(needed)}",
+                "viewed_profile": viewed_profile,
+                "viewed_transactions": viewed_transactions
+            }
+    
+    elif task.title == "Social Butterfly":
+        # Check if user has viewed leaderboard
+        viewed_leaderboard = any(
+            activity.get("action") == "viewed_leaderboard" 
+            for activity in user.activity_log[-20:]
+        )
+        
+        if viewed_leaderboard:
+            can_claim = True
+            progress = {"status": "completed", "description": "You've checked out the competition!"}
+        else:
+            progress = {
+                "status": "in_progress", 
+                "description": "Visit the leaderboard to see other players"
+            }
+    
+    elif task.title == "Community Member":
+        # Welcome bonus - always claimable for new users
+        can_claim = True
+        progress = {"status": "completed", "description": "Welcome to Vitacoin! Claim your bonus."}
+    
+    elif task.title == "Coin Collector":
+        # Check if user has 100+ coins
+        if user.coins >= 100:
+            can_claim = True
+            progress = {"status": "completed", "description": f"You have {user.coins} coins! Achievement unlocked."}
+        else:
+            remaining = 100 - user.coins
+            progress = {
+                "status": "in_progress", 
+                "description": f"Collect {remaining} more coins to unlock this achievement",
+                "current_coins": user.coins,
+                "target_coins": 100
+            }
+    
+    elif task.title == "Task Master":
+        # Check if user has completed 3 tasks today
+        today = datetime.now(timezone.utc).date()
+        completed_today = 0
+        for activity in user.activity_log:
+            if (activity.get("action") == "task_completed" and 
+                datetime.fromisoformat(activity["timestamp"].replace("Z", "+00:00")).date() == today):
+                completed_today += 1
+        
+        if completed_today >= 3:
+            can_claim = True
+            progress = {"status": "completed", "description": f"You've completed {completed_today} tasks today!"}
+        else:
+            progress = {
+                "status": "in_progress", 
+                "description": f"Complete {3 - completed_today} more tasks today ({completed_today}/3)",
+                "completed_today": completed_today,
+                "target": 3
+            }
+    
+    else:
+        # Default: task is claimable
+        can_claim = True
+        progress = {"status": "completed", "description": "Task ready to claim!"}
+    
+    return {"progress": progress, "can_claim": can_claim}
+
 async def get_leaderboard(limit: int = 10) -> List[LeaderboardEntry]:
     pipeline = [
         {"$sort": {"coins": -1}},
@@ -251,6 +385,9 @@ async def register(user_data: UserCreate):
     
     await db.users.insert_one(user.dict())
     
+    # Log registration activity
+    await log_user_activity(user.id, "user_registered", {"email": user.email})
+    
     # Return user without password hash
     return UserResponse(**user.dict())
 
@@ -263,6 +400,9 @@ async def login(login_data: UserLogin):
     user = User(**user_doc)
     access_token = create_access_token({"user_id": user.id})
     
+    # Log login activity
+    await log_user_activity(user.id, "user_login")
+    
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -271,6 +411,8 @@ async def login(login_data: UserLogin):
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
+    # Log profile view activity
+    await log_user_activity(current_user.id, "viewed_profile")
     return UserResponse(**current_user.dict())
 
 @api_router.post("/rewards/daily", response_model=DailyRewardResponse)
@@ -325,6 +467,9 @@ async def claim_daily_reward(current_user: User = Depends(get_current_user)):
     # Save transaction
     await db.transactions.insert_one(transaction.dict())
     
+    # Log activity
+    await log_user_activity(current_user.id, "daily_reward_claimed", {"coins": rule.points})
+    
     # Send real-time update
     await manager.send_personal_message({
         "type": "balance_update",
@@ -346,13 +491,13 @@ async def claim_daily_reward(current_user: User = Depends(get_current_user)):
     )
 
 # Task Management Routes
-@api_router.get("/tasks", response_model=List[Task])
+@api_router.get("/tasks", response_model=List[TaskWithProgress])
 async def get_available_tasks(
     category: Optional[str] = None,
     difficulty: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
-    """Get available tasks for the current user"""
+    """Get available tasks with user progress"""
     query = {"active": True}
     
     if category:
@@ -368,11 +513,37 @@ async def get_available_tasks(
     ]
     
     tasks = await db.tasks.find(query).to_list(length=None)
-    return [Task(**task) for task in tasks]
+    
+    # Add progress and completion status for each task
+    tasks_with_progress = []
+    for task_doc in tasks:
+        task = Task(**task_doc)
+        
+        # Skip completed tasks
+        if task.id in current_user.completed_tasks:
+            task_with_progress = TaskWithProgress(
+                **task.dict(),
+                progress={"status": "completed", "description": "Task already completed!"},
+                can_claim=False,
+                is_completed=True
+            )
+        else:
+            # Check requirements and progress
+            req_check = await check_task_requirements(current_user, task)
+            task_with_progress = TaskWithProgress(
+                **task.dict(),
+                progress=req_check["progress"],
+                can_claim=req_check["can_claim"],
+                is_completed=False
+            )
+        
+        tasks_with_progress.append(task_with_progress)
+    
+    return tasks_with_progress
 
-@api_router.post("/tasks/{task_id}/complete", response_model=TaskCompletionResponse)
-async def complete_task(task_id: str, current_user: User = Depends(get_current_user)):
-    """Complete a task and earn coins"""
+@api_router.post("/tasks/{task_id}/claim", response_model=TaskCompletionResponse)
+async def claim_task_reward(task_id: str, current_user: User = Depends(get_current_user)):
+    """Claim reward for a completed task"""
     # Get the task
     task_doc = await db.tasks.find_one({"id": task_id, "active": True})
     if not task_doc:
@@ -388,6 +559,14 @@ async def complete_task(task_id: str, current_user: User = Depends(get_current_u
     # Check if user already completed this task
     if task_id in current_user.completed_tasks:
         raise HTTPException(status_code=400, detail="Task already completed")
+    
+    # Check if user can claim this task
+    req_check = await check_task_requirements(current_user, task)
+    if not req_check["can_claim"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Task requirements not met: {req_check['progress'].get('description', 'Requirements not fulfilled')}"
+        )
     
     # Check max completions
     if task.max_completions and task.completion_count >= task.max_completions:
@@ -434,6 +613,13 @@ async def complete_task(task_id: str, current_user: User = Depends(get_current_u
     await db.task_completions.insert_one(completion.dict())
     await db.transactions.insert_one(transaction.dict())
     
+    # Log activity
+    await log_user_activity(current_user.id, "task_completed", {
+        "task_id": task_id,
+        "task_title": task.title,
+        "coins_earned": task.coins_reward
+    })
+    
     # Send real-time update
     await manager.send_personal_message({
         "type": "balance_update",
@@ -463,6 +649,19 @@ async def complete_task(task_id: str, current_user: User = Depends(get_current_u
         new_balance=new_coins
     )
 
+# Activity tracking endpoints
+@api_router.post("/activities/view-transactions")
+async def track_view_transactions(current_user: User = Depends(get_current_user)):
+    """Track when user views transaction history"""
+    await log_user_activity(current_user.id, "viewed_transactions")
+    return {"success": True, "message": "Activity tracked"}
+
+@api_router.post("/activities/view-leaderboard")
+async def track_view_leaderboard(current_user: User = Depends(get_current_user)):
+    """Track when user views leaderboard"""
+    await log_user_activity(current_user.id, "viewed_leaderboard")
+    return {"success": True, "message": "Activity tracked"}
+
 @api_router.get("/tasks/completed", response_model=List[TaskCompletion])
 async def get_completed_tasks(current_user: User = Depends(get_current_user)):
     """Get user's completed tasks"""
@@ -478,6 +677,9 @@ async def get_user_transactions(
     offset: int = 0,
     current_user: User = Depends(get_current_user)
 ):
+    # Track activity
+    await log_user_activity(current_user.id, "viewed_transactions")
+    
     transactions = await db.transactions.find(
         {"user_id": current_user.id}
     ).sort("created_at", -1).skip(offset).limit(limit).to_list(length=limit)
@@ -485,10 +687,13 @@ async def get_user_transactions(
     return [Transaction(**tx) for tx in transactions]
 
 @api_router.get("/leaderboard", response_model=List[LeaderboardEntry])
-async def get_leaderboard_endpoint(limit: int = 10):
+async def get_leaderboard_endpoint(limit: int = 10, current_user: User = Depends(get_current_user)):
+    # Track activity
+    await log_user_activity(current_user.id, "viewed_leaderboard")
+    
     return await get_leaderboard(limit)
 
-# Admin routes
+# Admin routes (keeping existing ones)
 @api_router.get("/admin/users", response_model=List[UserResponse])
 async def get_all_users(admin_user: User = Depends(require_admin)):
     users = await db.users.find().to_list(length=None)
@@ -615,63 +820,97 @@ async def initialize_database():
             rule = RewardRule(id=str(uuid.uuid4()), created_at=datetime.now(timezone.utc), **rule_data)
             await db.reward_rules.insert_one(rule.dict())
     
-    # Create default tasks
+    # Create enhanced tasks with specific requirements
     default_tasks = [
         {
             "title": "First Login",
-            "description": "Complete your first login to the platform",
+            "description": "Welcome! Complete your first login to earn coins.",
             "category": "daily",
             "coins_reward": 5,
-            "difficulty": "easy"
+            "difficulty": "easy",
+            "requirements": {"action": "login", "description": "Simply log in to complete this task"}
         },
         {
             "title": "Profile Explorer",
-            "description": "View your profile and transaction history",
+            "description": "Explore your profile and check your transaction history.",
             "category": "daily",
             "coins_reward": 10,
-            "difficulty": "easy"
+            "difficulty": "easy",
+            "requirements": {
+                "actions": ["view_profile", "view_transactions"],
+                "description": "Visit your profile and check your transaction history"
+            }
         },
         {
             "title": "Social Butterfly",
-            "description": "Check the leaderboard and see other players",
+            "description": "Check out the leaderboard and see how you rank against other players.",
             "category": "daily",
             "coins_reward": 15,
-            "difficulty": "easy"
+            "difficulty": "easy",
+            "requirements": {
+                "action": "view_leaderboard",
+                "description": "Visit the leaderboard to see top players"
+            }
         },
         {
             "title": "Task Master",
-            "description": "Complete 3 different tasks in one day",
+            "description": "Show your dedication by completing 3 different tasks in one day.",
             "category": "weekly",
             "coins_reward": 50,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "requirements": {
+                "action": "complete_tasks",
+                "count": 3,
+                "timeframe": "daily",
+                "description": "Complete 3 different tasks in one day"
+            }
         },
         {
             "title": "Coin Collector",
-            "description": "Accumulate 100 total coins",
+            "description": "Accumulate 100 total coins to unlock this achievement.",
             "category": "achievement",
             "coins_reward": 25,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "requirements": {
+                "action": "accumulate_coins",
+                "target": 100,
+                "description": "Earn 100 total coins through various activities"
+            }
         },
         {
             "title": "Leaderboard Climber",
-            "description": "Reach top 3 on the leaderboard",
+            "description": "Reach the top 3 positions on the leaderboard.",
             "category": "achievement",
             "coins_reward": 100,
-            "difficulty": "hard"
+            "difficulty": "hard",
+            "requirements": {
+                "action": "reach_leaderboard_position",
+                "position": 3,
+                "description": "Climb to the top 3 on the leaderboard"
+            }
         },
         {
             "title": "Weekly Warrior",
-            "description": "Complete daily login for 7 consecutive days",
+            "description": "Complete your daily login for 7 consecutive days.",
             "category": "weekly",
             "coins_reward": 75,
-            "difficulty": "medium"
+            "difficulty": "medium",
+            "requirements": {
+                "action": "consecutive_logins",
+                "days": 7,
+                "description": "Log in daily for 7 consecutive days"
+            }
         },
         {
             "title": "Community Member",
-            "description": "Welcome to the Vitacoin community! Claim this bonus.",
+            "description": "Welcome to the Vitacoin community! Claim your welcome bonus.",
             "category": "special",
             "coins_reward": 20,
-            "difficulty": "easy"
+            "difficulty": "easy",
+            "requirements": {
+                "action": "welcome_bonus",
+                "description": "Welcome bonus for joining the community"
+            }
         }
     ]
     
@@ -681,7 +920,7 @@ async def initialize_database():
             task = Task(id=str(uuid.uuid4()), created_at=datetime.now(timezone.utc), **task_data)
             await db.tasks.insert_one(task.dict())
     
-    return {"message": "Database initialized successfully with default tasks"}
+    return {"message": "Database initialized successfully with enhanced task system"}
 
 # Include the router in the main app
 app.include_router(api_router)

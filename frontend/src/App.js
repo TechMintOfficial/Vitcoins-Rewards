@@ -13,7 +13,8 @@ import { Progress } from './components/ui/progress';
 import { 
   Coins, Trophy, Clock, Users, Gift, TrendingUp, Crown, Star, 
   CheckCircle, Circle, Target, Calendar, Award, Zap, Timer,
-  Play, BookOpen, Sparkles, User
+  Play, BookOpen, Sparkles, User, AlertCircle, Eye, BarChart3,
+  ArrowRight, CheckSquare, Activity
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -367,15 +368,225 @@ const BalanceCard = ({ coins }) => {
   );
 };
 
+const TaskCard = ({ task, onTaskUpdate }) => {
+  const [expanded, setExpanded] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const { refreshUser } = useAuth();
+
+  const getCategoryIcon = (category) => {
+    switch (category) {
+      case 'daily': return <Calendar className="w-5 h-5" />;
+      case 'weekly': return <Target className="w-5 h-5" />;
+      case 'achievement': return <Award className="w-5 h-5" />;
+      case 'special': return <Sparkles className="w-5 h-5" />;
+      default: return <Circle className="w-5 h-5" />;
+    }
+  };
+
+  const getDifficultyColor = (difficulty) => {
+    switch (difficulty) {
+      case 'easy': return 'bg-green-100 text-green-800 border-green-200';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'hard': return 'bg-red-100 text-red-800 border-red-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'completed': return 'text-green-600';
+      case 'in_progress': return 'text-blue-600';
+      default: return 'text-gray-600';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'completed': return <CheckCircle className="w-4 h-4" />;
+      case 'in_progress': return <Activity className="w-4 h-4" />;
+      default: return <Circle className="w-4 h-4" />;
+    }
+  };
+
+  const handleClaimTask = async () => {
+    setClaiming(true);
+    try {
+      const response = await axios.post(`${API}/tasks/${task.id}/claim`);
+      if (response.data.success) {
+        toast.success(response.data.message);
+        refreshUser();
+        onTaskUpdate(); // Refresh tasks
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to claim task');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  const trackActivity = async (activityType) => {
+    try {
+      await axios.post(`${API}/activities/${activityType}`);
+      onTaskUpdate(); // Refresh tasks to update progress
+    } catch (error) {
+      console.error('Failed to track activity:', error);
+    }
+  };
+
+  const renderActionButtons = () => {
+    if (task.is_completed) {
+      return (
+        <Badge className="bg-green-100 text-green-800 border-green-200">
+          <CheckCircle className="w-4 h-4 mr-1" />
+          Completed
+        </Badge>
+      );
+    }
+
+    if (task.can_claim) {
+      return (
+        <Button
+          onClick={handleClaimTask}
+          disabled={claiming}
+          className="bg-green-500 hover:bg-green-600 text-white"
+          size="sm"
+        >
+          {claiming ? 'Claiming...' : (
+            <>
+              <CheckSquare className="w-4 h-4 mr-1" />
+              Claim +{task.coins_reward}
+            </>
+          )}
+        </Button>
+      );
+    }
+
+    // Show action buttons based on task requirements
+    if (task.title === "Profile Explorer") {
+      return (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => trackActivity('view-transactions')}
+            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+          >
+            <Eye className="w-4 h-4 mr-1" />
+            View Profile
+          </Button>
+        </div>
+      );
+    }
+
+    if (task.title === "Social Butterfly") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => trackActivity('view-leaderboard')}
+          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+        >
+          <BarChart3 className="w-4 h-4 mr-1" />
+          Check Leaderboard
+        </Button>
+      );
+    }
+
+    return (
+      <Badge variant="outline" className="text-blue-600">
+        In Progress
+      </Badge>
+    );
+  };
+
+  return (
+    <Card className={`transition-all duration-200 ${expanded ? 'border-blue-200 shadow-md' : 'hover:shadow-sm'}`}>
+      <div 
+        className="p-4 cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1">
+            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+              task.is_completed 
+                ? 'bg-green-100' 
+                : task.can_claim 
+                ? 'bg-blue-100' 
+                : 'bg-gray-100'
+            }`}>
+              {getCategoryIcon(task.category)}
+            </div>
+            
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h4 className="font-medium text-gray-800">{task.title}</h4>
+                <Badge className={getDifficultyColor(task.difficulty)} variant="secondary">
+                  {task.difficulty}
+                </Badge>
+                <Badge variant="outline" className="capitalize">
+                  {task.category}
+                </Badge>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1 text-amber-600">
+                  <Coins className="w-4 h-4" />
+                  <span className="font-semibold">+{task.coins_reward} coins</span>
+                </div>
+                
+                <div className={`flex items-center gap-1 text-sm ${getStatusColor(task.progress?.status)}`}>
+                  {getStatusIcon(task.progress?.status)}
+                  <span className="capitalize">{task.progress?.status || 'pending'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <ArrowRight className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        </div>
+      </div>
+      
+      {expanded && (
+        <div className="px-4 pb-4 border-t bg-gray-50">
+          <div className="pt-4">
+            <div className="mb-4">
+              <p className="text-sm text-gray-700 mb-2">
+                <strong>Progress:</strong> {task.progress?.description}
+              </p>
+              
+              {task.progress?.status === 'in_progress' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-blue-700">
+                      <p className="font-medium mb-1">Next Steps:</p>
+                      <p>{task.progress.description}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-gray-500">
+                Category: {task.category} • Difficulty: {task.difficulty}
+              </div>
+              {renderActionButtons()}
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+};
+
 const TasksPanel = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
-  const { user, refreshUser } = useAuth();
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
+  const { user } = useAuth();
 
   const fetchTasks = async () => {
     try {
@@ -388,46 +599,17 @@ const TasksPanel = () => {
     }
   };
 
-  const completeTask = async (taskId) => {
-    try {
-      const response = await axios.post(`${API}/tasks/${taskId}/complete`);
-      if (response.data.success) {
-        toast.success(response.data.message);
-        refreshUser();
-        fetchTasks(); // Refresh tasks to update completion status
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to complete task');
-    }
-  };
-
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case 'daily': return <Calendar className="w-4 h-4" />;
-      case 'weekly': return <Target className="w-4 h-4" />;
-      case 'achievement': return <Award className="w-4 h-4" />;
-      case 'special': return <Sparkles className="w-4 h-4" />;
-      default: return <Circle className="w-4 h-4" />;
-    }
-  };
-
-  const getDifficultyColor = (difficulty) => {
-    switch (difficulty) {
-      case 'easy': return 'bg-green-100 text-green-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'hard': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  useEffect(() => {
+    fetchTasks();
+  }, []);
 
   const filteredTasks = tasks.filter(task => {
     if (filter === 'all') return true;
     return task.category === filter;
   });
 
-  const availableTasks = filteredTasks.filter(task => 
-    !user?.completed_tasks?.includes(task.id)
-  );
+  const availableTasks = filteredTasks.filter(task => !task.is_completed);
+  const completedTasks = filteredTasks.filter(task => task.is_completed);
 
   if (loading) {
     return (
@@ -442,85 +624,69 @@ const TasksPanel = () => {
   }
 
   return (
-    <Card className="p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-2">
-          <Target className="w-5 h-5 text-blue-500" />
-          <h3 className="font-semibold text-gray-800">Available Tasks</h3>
-        </div>
-        
-        <div className="flex gap-2">
-          {['all', 'daily', 'weekly', 'achievement', 'special'].map((cat) => (
-            <Button
-              key={cat}
-              variant={filter === cat ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setFilter(cat)}
-              className="capitalize"
-            >
-              {cat}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {availableTasks.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Target className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-            <p>No tasks available in this category</p>
-            <p className="text-sm">Check back later for new tasks!</p>
+    <div className="space-y-6">
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <Target className="w-5 h-5 text-blue-500" />
+            <h3 className="font-semibold text-gray-800">Available Tasks</h3>
+            <Badge variant="outline">{availableTasks.length} available</Badge>
           </div>
-        ) : (
-          availableTasks.map((task) => (
-            <div key={task.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-              <div className="flex items-start gap-3 flex-1">
-                <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
-                  {getCategoryIcon(task.category)}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-medium text-gray-800">{task.title}</h4>
-                    <Badge className={getDifficultyColor(task.difficulty)} variant="secondary">
-                      {task.difficulty}
-                    </Badge>
-                    <Badge variant="outline" className="capitalize">
-                      {task.category}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-2">{task.description}</p>
-                  <div className="flex items-center gap-1 text-amber-600">
-                    <Coins className="w-4 h-4" />
-                    <span className="font-semibold">+{task.coins_reward} coins</span>
-                  </div>
-                </div>
-              </div>
-              
+          
+          <div className="flex gap-2">
+            {['all', 'daily', 'weekly', 'achievement', 'special'].map((cat) => (
               <Button
-                onClick={() => completeTask(task.id)}
-                className="bg-blue-500 hover:bg-blue-600 text-white"
+                key={cat}
+                variant={filter === cat ? 'default' : 'outline'}
                 size="sm"
+                onClick={() => setFilter(cat)}
+                className="capitalize"
               >
-                <Play className="w-4 h-4 mr-1" />
-                Complete
+                {cat}
               </Button>
-            </div>
-          ))
-        )}
-      </div>
-
-      {user?.completed_tasks?.length > 0 && (
-        <div className="mt-6 pt-6 border-t">
-          <h4 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
-            <CheckCircle className="w-4 h-4 text-green-500" />
-            Completed Tasks ({user.completed_tasks.length})
-          </h4>
-          <div className="text-sm text-gray-500">
-            You've completed {user.completed_tasks.length} tasks! Keep up the great work.
+            ))}
           </div>
         </div>
+
+        <div className="space-y-4">
+          {availableTasks.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Target className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p>No tasks available in this category</p>
+              <p className="text-sm">Check back later for new tasks!</p>
+            </div>
+          ) : (
+            availableTasks.map((task) => (
+              <TaskCard 
+                key={task.id} 
+                task={task} 
+                onTaskUpdate={fetchTasks}
+              />
+            ))
+          )}
+        </div>
+      </Card>
+
+      {completedTasks.length > 0 && (
+        <Card className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle className="w-5 h-5 text-green-500" />
+            <h3 className="font-semibold text-gray-800">Completed Tasks</h3>
+            <Badge className="bg-green-100 text-green-800">{completedTasks.length} completed</Badge>
+          </div>
+          
+          <div className="space-y-3">
+            {completedTasks.map((task) => (
+              <TaskCard 
+                key={task.id} 
+                task={task} 
+                onTaskUpdate={fetchTasks}
+              />
+            ))}
+          </div>
+        </Card>
       )}
-    </Card>
+    </div>
   );
 };
 
