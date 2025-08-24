@@ -806,28 +806,30 @@ const Dashboard = () => {
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-r from-amber-400 to-orange-500 p-2 rounded-lg">
-                <Coins className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between h-14 sm:h-16">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="bg-gradient-to-r from-amber-400 to-orange-500 p-1.5 sm:p-2 rounded-lg">
+                <Coins className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
+              <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-amber-600 to-orange-600 bg-clip-text text-transparent">
                 Vitacoin Rewards
               </h1>
             </div>
             
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-gray-700">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center gap-1 sm:gap-2 text-gray-700">
                 <User className="w-4 h-4" />
-                <span className="font-medium">{user?.name}</span>
+                <span className="font-medium text-sm sm:text-base hidden sm:inline">{user?.name}</span>
+                <span className="font-medium text-sm sm:hidden">{user?.name?.split(' ')[0]}</span>
                 {user?.role === 'admin' && (
-                  <Badge className="bg-purple-100 text-purple-800">Admin</Badge>
+                  <Badge className="bg-purple-100 text-purple-800 text-xs">Admin</Badge>
                 )}
               </div>
               <Button 
                 variant="outline" 
                 onClick={logout}
-                className="text-gray-600 hover:text-gray-800"
+                size="sm"
+                className="text-gray-600 hover:text-gray-800 text-xs sm:text-sm"
               >
                 Logout
               </Button>
@@ -836,44 +838,46 @@ const Dashboard = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            <BalanceCard coins={user?.coins || 0} />
-            <DailyRewardButton />
+          <div className="xl:col-span-3 space-y-4 sm:space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <BalanceCard coins={user?.coins || 0} />
+              <DailyRewardButton />
+            </div>
             
             <Tabs defaultValue="tasks" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="tasks">Tasks</TabsTrigger>
-                <TabsTrigger value="transactions">Transactions</TabsTrigger>
-                <TabsTrigger value="badges">Badges</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 h-10 sm:h-11">
+                <TabsTrigger value="tasks" className="text-xs sm:text-sm">Tasks</TabsTrigger>
+                <TabsTrigger value="transactions" className="text-xs sm:text-sm">Transactions</TabsTrigger>
+                <TabsTrigger value="badges" className="text-xs sm:text-sm">Badges</TabsTrigger>
               </TabsList>
               
-              <TabsContent value="tasks" className="mt-6">
+              <TabsContent value="tasks" className="mt-4 sm:mt-6">
                 <TasksPanel />
               </TabsContent>
               
-              <TabsContent value="transactions" className="mt-6">
+              <TabsContent value="transactions" className="mt-4 sm:mt-6">
                 <TransactionsTable />
               </TabsContent>
               
-              <TabsContent value="badges" className="mt-6">
-                <Card className="p-6">
-                  <h3 className="font-semibold text-gray-800 mb-4">Your Badges</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <TabsContent value="badges" className="mt-4 sm:mt-6">
+                <Card className="p-4 sm:p-6">
+                  <h3 className="font-semibold text-gray-800 mb-4 text-sm sm:text-base">Your Badges</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
                     {user?.badges?.length > 0 ? (
                       user.badges.map((badge, index) => (
-                        <div key={index} className="text-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg">
-                          <Trophy className="w-8 h-8 text-blue-500 mx-auto mb-2" />
-                          <p className="text-sm font-medium text-blue-800">{badge}</p>
+                        <div key={index} className="text-center p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg">
+                          <Trophy className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 mx-auto mb-2" />
+                          <p className="text-xs sm:text-sm font-medium text-blue-800">{badge}</p>
                         </div>
                       ))
                     ) : (
-                      <div className="col-span-full text-center py-8 text-gray-500">
-                        <Trophy className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                        <p>No badges earned yet</p>
-                        <p className="text-sm">Complete tasks to unlock badges!</p>
+                      <div className="col-span-full text-center py-6 sm:py-8 text-gray-500">
+                        <Trophy className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-gray-300" />
+                        <p className="text-sm sm:text-base">No badges earned yet</p>
+                        <p className="text-xs sm:text-sm">Complete tasks to unlock badges!</p>
                       </div>
                     )}
                   </div>
@@ -883,8 +887,10 @@ const Dashboard = () => {
           </div>
           
           {/* Sidebar */}
-          <div className="space-y-6">
-            <LeaderboardWidget leaderboard={leaderboard} />
+          <div className="xl:col-span-1 order-first xl:order-last">
+            <div className="sticky top-20">
+              <LeaderboardWidget leaderboard={leaderboard} />
+            </div>
           </div>
         </div>
       </main>
