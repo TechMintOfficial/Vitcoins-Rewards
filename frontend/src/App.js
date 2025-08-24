@@ -709,31 +709,31 @@ const LeaderboardWidget = ({ leaderboard }) => {
 
   const getRankIcon = (rank) => {
     switch (rank) {
-      case 1: return <Crown className="w-5 h-5 text-yellow-500" />;
-      case 2: return <Trophy className="w-5 h-5 text-gray-400" />;
-      case 3: return <Star className="w-5 h-5 text-amber-600" />;
-      default: return <span className="w-5 h-5 flex items-center justify-center text-sm font-bold text-gray-500">#{rank}</span>;
+      case 1: return <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-500" />;
+      case 2: return <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />;
+      case 3: return <Star className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />;
+      default: return <span className="w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center text-xs sm:text-sm font-bold text-gray-500">#{rank}</span>;
     }
   };
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="w-5 h-5 text-blue-500" />
-        <h3 className="font-semibold text-gray-800">Top Players</h3>
-        <Badge variant="outline" className="ml-auto">Live</Badge>
+        <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
+        <h3 className="font-semibold text-gray-800 text-sm sm:text-base">Top Players</h3>
+        <Badge variant="outline" className="ml-auto text-xs">Live</Badge>
       </div>
       
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         {localLeaderboard.slice(0, 5).map((player) => (
-          <div key={player.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div className="flex items-center gap-3">
+          <div key={player.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
               {getRankIcon(player.rank)}
-              <span className="font-medium text-gray-800">{player.name}</span>
+              <span className="font-medium text-gray-800 text-sm sm:text-base truncate">{player.name}</span>
             </div>
-            <div className="flex items-center gap-1 text-amber-600">
-              <Coins className="w-4 h-4" />
-              <span className="font-semibold">{player.coins.toLocaleString()}</span>
+            <div className="flex items-center gap-1 text-amber-600 flex-shrink-0">
+              <Coins className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="font-semibold text-xs sm:text-sm">{player.coins.toLocaleString()}</span>
             </div>
           </div>
         ))}
@@ -763,10 +763,10 @@ const TransactionsTable = () => {
 
   if (loading) {
     return (
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="animate-pulse space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-4 bg-gray-200 rounded"></div>
+            <div key={i} className="h-3 sm:h-4 bg-gray-200 rounded"></div>
           ))}
         </div>
       </Card>
@@ -774,22 +774,22 @@ const TransactionsTable = () => {
   }
 
   return (
-    <Card className="p-6">
-      <h3 className="font-semibold text-gray-800 mb-4">Recent Transactions</h3>
-      <div className="space-y-3">
+    <Card className="p-4 sm:p-6">
+      <h3 className="font-semibold text-gray-800 mb-4 text-sm sm:text-base">Recent Transactions</h3>
+      <div className="space-y-2 sm:space-y-3">
         {transactions.slice(0, 10).map((tx) => (
-          <div key={tx.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-            <div>
-              <p className="font-medium text-gray-800">{tx.description}</p>
-              <p className="text-sm text-gray-500">
+          <div key={tx.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg">
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-gray-800 text-sm sm:text-base truncate">{tx.description}</p>
+              <p className="text-xs sm:text-sm text-gray-500">
                 {new Date(tx.created_at).toLocaleDateString()}
               </p>
             </div>
-            <div className={`flex items-center gap-1 font-semibold ${
+            <div className={`flex items-center gap-1 font-semibold flex-shrink-0 ml-2 ${
               tx.type === 'credit' ? 'text-green-600' : 'text-red-600'
             }`}>
-              <Coins className="w-4 h-4" />
-              <span>{tx.type === 'credit' ? '+' : '-'}{Math.abs(tx.amount)}</span>
+              <Coins className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="text-xs sm:text-sm">{tx.type === 'credit' ? '+' : '-'}{Math.abs(tx.amount)}</span>
             </div>
           </div>
         ))}
