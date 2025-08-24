@@ -369,11 +369,11 @@ const TaskCard = ({ task, onTaskUpdate }) => {
 
   const getCategoryIcon = (category) => {
     switch (category) {
-      case 'daily': return <Calendar className="w-5 h-5" />;
-      case 'weekly': return <Target className="w-5 h-5" />;
-      case 'achievement': return <Award className="w-5 h-5" />;
-      case 'special': return <Sparkles className="w-5 h-5" />;
-      default: return <Circle className="w-5 h-5" />;
+      case 'daily': return <Calendar className="w-4 h-4 sm:w-5 sm:h-5" />;
+      case 'weekly': return <Target className="w-4 h-4 sm:w-5 sm:h-5" />;
+      case 'achievement': return <Award className="w-4 h-4 sm:w-5 sm:h-5" />;
+      case 'special': return <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />;
+      default: return <Circle className="w-4 h-4 sm:w-5 sm:h-5" />;
     }
   };
 
@@ -396,9 +396,9 @@ const TaskCard = ({ task, onTaskUpdate }) => {
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'completed': return <CheckCircle className="w-4 h-4" />;
-      case 'in_progress': return <Activity className="w-4 h-4" />;
-      default: return <Circle className="w-4 h-4" />;
+      case 'completed': return <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />;
+      case 'in_progress': return <Activity className="w-3 h-3 sm:w-4 sm:h-4" />;
+      default: return <Circle className="w-3 h-3 sm:w-4 sm:h-4" />;
     }
   };
 
@@ -430,8 +430,8 @@ const TaskCard = ({ task, onTaskUpdate }) => {
   const renderActionButtons = () => {
     if (task.is_completed) {
       return (
-        <Badge className="bg-green-100 text-green-800 border-green-200">
-          <CheckCircle className="w-4 h-4 mr-1" />
+        <Badge className="bg-green-100 text-green-800 border-green-200 text-xs">
+          <CheckCircle className="w-3 h-3 mr-1" />
           Completed
         </Badge>
       );
@@ -442,12 +442,12 @@ const TaskCard = ({ task, onTaskUpdate }) => {
         <Button
           onClick={handleClaimTask}
           disabled={claiming}
-          className="bg-green-500 hover:bg-green-600 text-white"
+          className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm"
           size="sm"
         >
           {claiming ? 'Claiming...' : (
             <>
-              <CheckSquare className="w-4 h-4 mr-1" />
+              <CheckSquare className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
               Claim +{task.coins_reward}
             </>
           )}
@@ -463,9 +463,9 @@ const TaskCard = ({ task, onTaskUpdate }) => {
             variant="outline"
             size="sm"
             onClick={() => trackActivity('view-transactions')}
-            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+            className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs sm:text-sm"
           >
-            <Eye className="w-4 h-4 mr-1" />
+            <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
             View Profile
           </Button>
         </div>
@@ -478,16 +478,16 @@ const TaskCard = ({ task, onTaskUpdate }) => {
           variant="outline"
           size="sm"
           onClick={() => trackActivity('view-leaderboard')}
-          className="text-blue-600 border-blue-200 hover:bg-blue-50"
+          className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs sm:text-sm"
         >
-          <BarChart3 className="w-4 h-4 mr-1" />
+          <BarChart3 className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
           Check Leaderboard
         </Button>
       );
     }
 
     return (
-      <Badge variant="outline" className="text-blue-600">
+      <Badge variant="outline" className="text-blue-600 text-xs">
         In Progress
       </Badge>
     );
@@ -496,12 +496,12 @@ const TaskCard = ({ task, onTaskUpdate }) => {
   return (
     <Card className={`transition-all duration-200 ${expanded ? 'border-blue-200 shadow-md' : 'hover:shadow-sm'}`}>
       <div 
-        className="p-4 cursor-pointer"
+        className="p-3 sm:p-4 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
         <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3 flex-1">
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full ${
+          <div className="flex items-start gap-2 sm:gap-3 flex-1">
+            <div className={`flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full ${
               task.is_completed 
                 ? 'bg-green-100' 
                 : task.can_claim 
@@ -511,50 +511,50 @@ const TaskCard = ({ task, onTaskUpdate }) => {
               {getCategoryIcon(task.category)}
             </div>
             
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-medium text-gray-800">{task.title}</h4>
-                <Badge className={getDifficultyColor(task.difficulty)} variant="secondary">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 sm:gap-2 mb-1 flex-wrap">
+                <h4 className="font-medium text-gray-800 text-sm sm:text-base truncate">{task.title}</h4>
+                <Badge className={`${getDifficultyColor(task.difficulty)} text-xs`} variant="secondary">
                   {task.difficulty}
                 </Badge>
-                <Badge variant="outline" className="capitalize">
+                <Badge variant="outline" className="capitalize text-xs">
                   {task.category}
                 </Badge>
               </div>
               
-              <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+              <p className="text-xs sm:text-sm text-gray-600 mb-2 line-clamp-2">{task.description}</p>
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 text-amber-600">
-                  <Coins className="w-4 h-4" />
-                  <span className="font-semibold">+{task.coins_reward} coins</span>
+                  <Coins className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="font-semibold text-xs sm:text-sm">+{task.coins_reward} coins</span>
                 </div>
                 
-                <div className={`flex items-center gap-1 text-sm ${getStatusColor(task.progress?.status)}`}>
+                <div className={`flex items-center gap-1 text-xs ${getStatusColor(task.progress?.status)}`}>
                   {getStatusIcon(task.progress?.status)}
-                  <span className="capitalize">{task.progress?.status || 'pending'}</span>
+                  <span className="capitalize hidden sm:inline">{task.progress?.status || 'pending'}</span>
                 </div>
               </div>
             </div>
           </div>
           
-          <ArrowRight className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+          <ArrowRight className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ml-2 ${expanded ? 'rotate-90' : ''}`} />
         </div>
       </div>
       
       {expanded && (
-        <div className="px-4 pb-4 border-t bg-gray-50">
-          <div className="pt-4">
-            <div className="mb-4">
-              <p className="text-sm text-gray-700 mb-2">
+        <div className="px-3 sm:px-4 pb-3 sm:pb-4 border-t bg-gray-50">
+          <div className="pt-3 sm:pt-4">
+            <div className="mb-3 sm:mb-4">
+              <p className="text-xs sm:text-sm text-gray-700 mb-2">
                 <strong>Progress:</strong> {task.progress?.description}
               </p>
               
               {task.progress?.status === 'in_progress' && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 sm:p-3 mb-3">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div className="text-sm text-blue-700">
+                    <div className="text-xs sm:text-sm text-blue-700">
                       <p className="font-medium mb-1">Next Steps:</p>
                       <p>{task.progress.description}</p>
                     </div>
@@ -563,9 +563,10 @@ const TaskCard = ({ task, onTaskUpdate }) => {
               )}
             </div>
             
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div className="text-xs text-gray-500">
-                Category: {task.category} • Difficulty: {task.difficulty}
+                <span className="hidden sm:inline">Category: {task.category} • Difficulty: {task.difficulty}</span>
+                <span className="sm:hidden">{task.category} • {task.difficulty}</span>
               </div>
               {renderActionButtons()}
             </div>
