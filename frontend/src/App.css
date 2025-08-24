@@ -113,7 +113,12 @@ body {
 
 /* Button focus styles */
 .focus-ring {
-  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2;
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  ring: 2px;
+  ring-offset: 2px;
 }
 
 /* Loading skeleton animation */
