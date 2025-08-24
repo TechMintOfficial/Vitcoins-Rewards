@@ -82,6 +82,7 @@ class User(BaseModel):
     coins: int = 0
     badges: List[str] = []
     last_daily_reward: Optional[datetime] = None
+    completed_tasks: List[str] = []  # List of completed task IDs
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class UserCreate(BaseModel):
@@ -101,7 +102,39 @@ class UserResponse(BaseModel):
     coins: int
     badges: List[str]
     last_daily_reward: Optional[datetime]
+    completed_tasks: List[str]
     created_at: datetime
+
+class Task(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    category: str  # "daily", "weekly", "achievement", "special"
+    coins_reward: int
+    difficulty: str = "easy"  # "easy", "medium", "hard"
+    requirements: Optional[Dict[str, Any]] = {}  # Custom requirements
+    active: bool = True
+    max_completions: Optional[int] = None  # None for unlimited
+    completion_count: int = 0
+    expires_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class TaskCreate(BaseModel):
+    title: str
+    description: str
+    category: str
+    coins_reward: int
+    difficulty: str = "easy"
+    requirements: Optional[Dict[str, Any]] = {}
+    max_completions: Optional[int] = None
+    expires_at: Optional[datetime] = None
+
+class TaskCompletion(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    task_id: str
+    coins_earned: int
+    completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class RewardRule(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -122,6 +155,7 @@ class Transaction(BaseModel):
     type: str  # "credit" or "debit"
     rule_key: str
     description: str
+    task_id: Optional[str] = None  # Reference to task if applicable
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class DailyRewardResponse(BaseModel):
@@ -130,6 +164,12 @@ class DailyRewardResponse(BaseModel):
     coins_earned: Optional[int] = None
     new_balance: Optional[int] = None
     next_reward_in: Optional[int] = None  # hours
+
+class TaskCompletionResponse(BaseModel):
+    success: bool
+    message: str
+    coins_earned: Optional[int] = None
+    new_balance: Optional[int] = None
 
 class LeaderboardEntry(BaseModel):
     id: str
@@ -305,6 +345,133 @@ async def claim_daily_reward(current_user: User = Depends(get_current_user)):
         new_balance=new_coins
     )
 
+# Task Management Routes
+@api_router.get("/tasks", response_model=List[Task])
+async def get_available_tasks(
+    category: Optional[str] = None,
+    difficulty: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Get available tasks for the current user"""
+    query = {"active": True}
+    
+    if category:
+        query["category"] = category
+    if difficulty:
+        query["difficulty"] = difficulty
+    
+    # Filter out expired tasks
+    now = datetime.now(timezone.utc)
+    query["$or"] = [
+        {"expires_at": None},
+        {"expires_at": {"$gt": now}}
+    ]
+    
+    tasks = await db.tasks.find(query).to_list(length=None)
+    return [Task(**task) for task in tasks]
+
+@api_router.post("/tasks/{task_id}/complete", response_model=TaskCompletionResponse)
+async def complete_task(task_id: str, current_user: User = Depends(get_current_user)):
+    """Complete a task and earn coins"""
+    # Get the task
+    task_doc = await db.tasks.find_one({"id": task_id, "active": True})
+    if not task_doc:
+        raise HTTPException(status_code=404, detail="Task not found or inactive")
+    
+    task = Task(**task_doc)
+    
+    # Check if task is expired
+    now = datetime.now(timezone.utc)
+    if task.expires_at and task.expires_at < now:
+        raise HTTPException(status_code=400, detail="Task has expired")
+    
+    # Check if user already completed this task
+    if task_id in current_user.completed_tasks:
+        raise HTTPException(status_code=400, detail="Task already completed")
+    
+    # Check max completions
+    if task.max_completions and task.completion_count >= task.max_completions:
+        raise HTTPException(status_code=400, detail="Task completion limit reached")
+    
+    # Create task completion record
+    completion = TaskCompletion(
+        user_id=current_user.id,
+        task_id=task_id,
+        coins_earned=task.coins_reward
+    )
+    
+    # Create transaction
+    transaction = Transaction(
+        user_id=current_user.id,
+        amount=task.coins_reward,
+        type="credit",
+        rule_key=f"task_{task.category}",
+        description=f"Task completed: {task.title}",
+        task_id=task_id
+    )
+    
+    # Update user coins and completed tasks
+    new_coins = current_user.coins + task.coins_reward
+    completed_tasks = current_user.completed_tasks + [task_id]
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$set": {
+                "coins": new_coins,
+                "completed_tasks": completed_tasks
+            }
+        }
+    )
+    
+    # Update task completion count
+    await db.tasks.update_one(
+        {"id": task_id},
+        {"$inc": {"completion_count": 1}}
+    )
+    
+    # Save completion and transaction records
+    await db.task_completions.insert_one(completion.dict())
+    await db.transactions.insert_one(transaction.dict())
+    
+    # Send real-time update
+    await manager.send_personal_message({
+        "type": "balance_update",
+        "data": {
+            "coins": new_coins,
+            "delta": task.coins_reward,
+            "source": f"Task: {task.title}"
+        }
+    }, current_user.id)
+    
+    await manager.send_personal_message({
+        "type": "task_completed",
+        "data": {
+            "task_id": task_id,
+            "task_title": task.title,
+            "coins_earned": task.coins_reward
+        }
+    }, current_user.id)
+    
+    # Update leaderboard
+    await broadcast_leaderboard_update()
+    
+    return TaskCompletionResponse(
+        success=True,
+        message=f"Task '{task.title}' completed! +{task.coins_reward} coins",
+        coins_earned=task.coins_reward,
+        new_balance=new_coins
+    )
+
+@api_router.get("/tasks/completed", response_model=List[TaskCompletion])
+async def get_completed_tasks(current_user: User = Depends(get_current_user)):
+    """Get user's completed tasks"""
+    completions = await db.task_completions.find(
+        {"user_id": current_user.id}
+    ).sort("completed_at", -1).to_list(length=None)
+    
+    return [TaskCompletion(**completion) for completion in completions]
+
 @api_router.get("/transactions", response_model=List[Transaction])
 async def get_user_transactions(
     limit: int = 20,
@@ -341,6 +508,47 @@ async def create_reward_rule(rule_data: RewardRule, admin_user: User = Depends(r
     
     await db.reward_rules.insert_one(rule_data.dict())
     return rule_data
+
+# Admin Task Management
+@api_router.get("/admin/tasks", response_model=List[Task])
+async def get_all_tasks(admin_user: User = Depends(require_admin)):
+    """Get all tasks for admin management"""
+    tasks = await db.tasks.find().sort("created_at", -1).to_list(length=None)
+    return [Task(**task) for task in tasks]
+
+@api_router.post("/admin/tasks", response_model=Task)
+async def create_task(task_data: TaskCreate, admin_user: User = Depends(require_admin)):
+    """Create a new task"""
+    task = Task(**task_data.dict())
+    await db.tasks.insert_one(task.dict())
+    return task
+
+@api_router.put("/admin/tasks/{task_id}", response_model=Task)
+async def update_task(task_id: str, task_data: TaskCreate, admin_user: User = Depends(require_admin)):
+    """Update an existing task"""
+    task_doc = await db.tasks.find_one({"id": task_id})
+    if not task_doc:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    updated_data = task_data.dict()
+    await db.tasks.update_one({"id": task_id}, {"$set": updated_data})
+    
+    updated_task = await db.tasks.find_one({"id": task_id})
+    return Task(**updated_task)
+
+@api_router.delete("/admin/tasks/{task_id}")
+async def delete_task(task_id: str, admin_user: User = Depends(require_admin)):
+    """Delete a task"""
+    result = await db.tasks.delete_one({"id": task_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"message": "Task deleted successfully"}
+
+@api_router.get("/admin/task-completions", response_model=List[TaskCompletion])
+async def get_all_task_completions(admin_user: User = Depends(require_admin)):
+    """Get all task completions for admin analytics"""
+    completions = await db.task_completions.find().sort("completed_at", -1).to_list(length=100)
+    return [TaskCompletion(**completion) for completion in completions]
 
 # WebSocket endpoint
 @app.websocket("/ws/{user_id}")
@@ -379,16 +587,23 @@ async def initialize_database():
             "cooldown_hours": 24
         },
         {
-            "key": "task_completed",
-            "description": "Task completion reward",
+            "key": "task_daily",
+            "description": "Daily task completion",
             "points": 5,
             "penalty": False,
             "active": True
         },
         {
-            "key": "referral_bonus",
-            "description": "Referral bonus",
+            "key": "task_weekly",
+            "description": "Weekly task completion",
             "points": 25,
+            "penalty": False,
+            "active": True
+        },
+        {
+            "key": "task_achievement",
+            "description": "Achievement task completion",
+            "points": 50,
             "penalty": False,
             "active": True
         }
@@ -400,7 +615,73 @@ async def initialize_database():
             rule = RewardRule(id=str(uuid.uuid4()), created_at=datetime.now(timezone.utc), **rule_data)
             await db.reward_rules.insert_one(rule.dict())
     
-    return {"message": "Database initialized successfully"}
+    # Create default tasks
+    default_tasks = [
+        {
+            "title": "First Login",
+            "description": "Complete your first login to the platform",
+            "category": "daily",
+            "coins_reward": 5,
+            "difficulty": "easy"
+        },
+        {
+            "title": "Profile Explorer",
+            "description": "View your profile and transaction history",
+            "category": "daily",
+            "coins_reward": 10,
+            "difficulty": "easy"
+        },
+        {
+            "title": "Social Butterfly",
+            "description": "Check the leaderboard and see other players",
+            "category": "daily",
+            "coins_reward": 15,
+            "difficulty": "easy"
+        },
+        {
+            "title": "Task Master",
+            "description": "Complete 3 different tasks in one day",
+            "category": "weekly",
+            "coins_reward": 50,
+            "difficulty": "medium"
+        },
+        {
+            "title": "Coin Collector",
+            "description": "Accumulate 100 total coins",
+            "category": "achievement",
+            "coins_reward": 25,
+            "difficulty": "medium"
+        },
+        {
+            "title": "Leaderboard Climber",
+            "description": "Reach top 3 on the leaderboard",
+            "category": "achievement",
+            "coins_reward": 100,
+            "difficulty": "hard"
+        },
+        {
+            "title": "Weekly Warrior",
+            "description": "Complete daily login for 7 consecutive days",
+            "category": "weekly",
+            "coins_reward": 75,
+            "difficulty": "medium"
+        },
+        {
+            "title": "Community Member",
+            "description": "Welcome to the Vitacoin community! Claim this bonus.",
+            "category": "special",
+            "coins_reward": 20,
+            "difficulty": "easy"
+        }
+    ]
+    
+    for task_data in default_tasks:
+        existing_task = await db.tasks.find_one({"title": task_data["title"]})
+        if not existing_task:
+            task = Task(id=str(uuid.uuid4()), created_at=datetime.now(timezone.utc), **task_data)
+            await db.tasks.insert_one(task.dict())
+    
+    return {"message": "Database initialized successfully with default tasks"}
 
 # Include the router in the main app
 app.include_router(api_router)

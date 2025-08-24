@@ -9,7 +9,12 @@ import { Input } from './components/ui/input';
 import { Badge } from './components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
-import { Coins, Trophy, Clock, Users, Gift, TrendingUp, Crown, Star } from 'lucide-react';
+import { Progress } from './components/ui/progress';
+import { 
+  Coins, Trophy, Clock, Users, Gift, TrendingUp, Crown, Star, 
+  CheckCircle, Circle, Target, Calendar, Award, Zap, Timer,
+  Play, BookOpen, Sparkles, User
+} from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -85,6 +90,10 @@ const AuthProvider = ({ children }) => {
     setUser(prev => ({ ...prev, coins: newCoins }));
   };
 
+  const refreshUser = () => {
+    fetchUserInfo();
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -93,7 +102,7 @@ const AuthProvider = ({ children }) => {
       logout, 
       loading, 
       updateUserCoins,
-      refreshUser: fetchUserInfo 
+      refreshUser 
     }}>
       {children}
     </AuthContext.Provider>
@@ -136,6 +145,12 @@ const useWebSocket = (userId) => {
         });
       } else if (message.type === 'leaderboard_update') {
         setLeaderboard(message.data);
+      } else if (message.type === 'task_completed') {
+        const { task_title, coins_earned } = message.data;
+        toast.success(`Task completed: ${task_title}`, {
+          description: `+${coins_earned} coins earned!`,
+          icon: <CheckCircle className="w-4 h-4 text-green-500" />
+        });
       }
     };
 
@@ -253,7 +268,7 @@ const DailyRewardButton = () => {
   const [loading, setLoading] = useState(false);
   const [canClaim, setCanClaim] = useState(true);
   const [nextRewardIn, setNextRewardIn] = useState(0);
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
   useEffect(() => {
     if (user?.last_daily_reward) {
@@ -276,6 +291,7 @@ const DailyRewardButton = () => {
         toast.success(response.data.message);
         setCanClaim(false);
         setNextRewardIn(24);
+        refreshUser();
       } else {
         toast.error(response.data.message);
         setNextRewardIn(response.data.next_reward_in || 0);
@@ -347,6 +363,163 @@ const BalanceCard = ({ coins }) => {
           </Badge>
         </div>
       </div>
+    </Card>
+  );
+};
+
+const TasksPanel = () => {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const { user, refreshUser } = useAuth();
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    try {
+      const response = await axios.get(`${API}/tasks`);
+      setTasks(response.data);
+    } catch (error) {
+      console.error('Failed to fetch tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeTask = async (taskId) => {
+    try {
+      const response = await axios.post(`${API}/tasks/${taskId}/complete`);
+      if (response.data.success) {
+        toast.success(response.data.message);
+        refreshUser();
+        fetchTasks(); // Refresh tasks to update completion status
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to complete task');
+    }
+  };
+
+  const getCategoryIcon = (category) => {
+    switch (category) {
+      case 'daily': return <Calendar className="w-4 h-4" />;
+      case 'weekly': return <Target className="w-4 h-4" />;
+      case 'achievement': return <Award className="w-4 h-4" />;
+      case 'special': return <Sparkles className="w-4 h-4" />;
+      default: return <Circle className="w-4 h-4" />;
+    }
+  };
+
+  const getDifficultyColor = (difficulty) => {
+    switch (difficulty) {
+      case 'easy': return 'bg-green-100 text-green-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'hard': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const filteredTasks = tasks.filter(task => {
+    if (filter === 'all') return true;
+    return task.category === filter;
+  });
+
+  const availableTasks = filteredTasks.filter(task => 
+    !user?.completed_tasks?.includes(task.id)
+  );
+
+  if (loading) {
+    return (
+      <Card className="p-6">
+        <div className="animate-pulse space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-blue-500" />
+          <h3 className="font-semibold text-gray-800">Available Tasks</h3>
+        </div>
+        
+        <div className="flex gap-2">
+          {['all', 'daily', 'weekly', 'achievement', 'special'].map((cat) => (
+            <Button
+              key={cat}
+              variant={filter === cat ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setFilter(cat)}
+              className="capitalize"
+            >
+              {cat}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {availableTasks.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <Target className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>No tasks available in this category</p>
+            <p className="text-sm">Check back later for new tasks!</p>
+          </div>
+        ) : (
+          availableTasks.map((task) => (
+            <div key={task.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+              <div className="flex items-start gap-3 flex-1">
+                <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full">
+                  {getCategoryIcon(task.category)}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="font-medium text-gray-800">{task.title}</h4>
+                    <Badge className={getDifficultyColor(task.difficulty)} variant="secondary">
+                      {task.difficulty}
+                    </Badge>
+                    <Badge variant="outline" className="capitalize">
+                      {task.category}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                  <div className="flex items-center gap-1 text-amber-600">
+                    <Coins className="w-4 h-4" />
+                    <span className="font-semibold">+{task.coins_reward} coins</span>
+                  </div>
+                </div>
+              </div>
+              
+              <Button
+                onClick={() => completeTask(task.id)}
+                className="bg-blue-500 hover:bg-blue-600 text-white"
+                size="sm"
+              >
+                <Play className="w-4 h-4 mr-1" />
+                Complete
+              </Button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {user?.completed_tasks?.length > 0 && (
+        <div className="mt-6 pt-6 border-t">
+          <h4 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-green-500" />
+            Completed Tasks ({user.completed_tasks.length})
+          </h4>
+          <div className="text-sm text-gray-500">
+            You've completed {user.completed_tasks.length} tasks! Keep up the great work.
+          </div>
+        </div>
+      )}
     </Card>
   );
 };
@@ -485,7 +658,7 @@ const Dashboard = () => {
             
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 text-gray-700">
-                <Users className="w-4 h-4" />
+                <User className="w-4 h-4" />
                 <span className="font-medium">{user?.name}</span>
                 {user?.role === 'admin' && (
                   <Badge className="bg-purple-100 text-purple-800">Admin</Badge>
@@ -510,11 +683,16 @@ const Dashboard = () => {
             <BalanceCard coins={user?.coins || 0} />
             <DailyRewardButton />
             
-            <Tabs defaultValue="transactions" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs defaultValue="tasks" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="tasks">Tasks</TabsTrigger>
                 <TabsTrigger value="transactions">Transactions</TabsTrigger>
                 <TabsTrigger value="badges">Badges</TabsTrigger>
               </TabsList>
+              
+              <TabsContent value="tasks" className="mt-6">
+                <TasksPanel />
+              </TabsContent>
               
               <TabsContent value="transactions" className="mt-6">
                 <TransactionsTable />
