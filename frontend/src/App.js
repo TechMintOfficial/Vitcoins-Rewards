@@ -299,21 +299,21 @@ const DailyRewardButton = () => {
   };
 
   return (
-    <Card className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-      <div className="flex items-center justify-between">
+    <Card className="p-4 sm:p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
         <div>
-          <h3 className="font-semibold text-emerald-800 flex items-center gap-2">
-            <Gift className="w-5 h-5" />
+          <h3 className="font-semibold text-emerald-800 flex items-center gap-2 text-sm sm:text-base">
+            <Gift className="w-4 h-4 sm:w-5 sm:h-5" />
             Daily Reward
           </h3>
-          <p className="text-sm text-emerald-600">
+          <p className="text-xs sm:text-sm text-emerald-600 mt-1">
             {canClaim ? 'Claim your daily +10 coins!' : `Next reward in ${nextRewardIn} hours`}
           </p>
         </div>
         <Button
           onClick={claimDailyReward}
           disabled={!canClaim || loading}
-          className="bg-emerald-500 hover:bg-emerald-600 text-white px-6"
+          className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 sm:px-6 text-sm w-full sm:w-auto"
         >
           {loading ? 'Claiming...' : canClaim ? 'Claim +10' : <Clock className="w-4 h-4" />}
         </Button>
@@ -343,17 +343,17 @@ const BalanceCard = ({ coins }) => {
   }, [coins, displayCoins]);
 
   return (
-    <Card className="p-6 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
+    <Card className="p-4 sm:p-6 bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-amber-600 font-medium">Your Balance</p>
+          <p className="text-xs sm:text-sm text-amber-600 font-medium">Your Balance</p>
           <div className="flex items-center gap-2 mt-1">
-            <Coins className="w-6 h-6 text-amber-500" />
-            <span className="text-3xl font-bold text-amber-800">{displayCoins.toLocaleString()}</span>
+            <Coins className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
+            <span className="text-2xl sm:text-3xl font-bold text-amber-800">{displayCoins.toLocaleString()}</span>
           </div>
         </div>
         <div className="text-right">
-          <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+          <Badge variant="secondary" className="bg-amber-100 text-amber-800 text-xs">
             Vitacoins
           </Badge>
         </div>
