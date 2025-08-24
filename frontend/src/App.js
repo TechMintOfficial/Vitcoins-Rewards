@@ -608,10 +608,10 @@ const TasksPanel = () => {
 
   if (loading) {
     return (
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <div className="animate-pulse space-y-3">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-gray-200 rounded"></div>
+            <div key={i} className="h-12 sm:h-16 bg-gray-200 rounded"></div>
           ))}
         </div>
       </Card>
@@ -619,23 +619,23 @@ const TasksPanel = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
+    <div className="space-y-4 sm:space-y-6">
+      <Card className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
           <div className="flex items-center gap-2">
             <Target className="w-5 h-5 text-blue-500" />
-            <h3 className="font-semibold text-gray-800">Available Tasks</h3>
-            <Badge variant="outline">{availableTasks.length} available</Badge>
+            <h3 className="font-semibold text-gray-800 text-sm sm:text-base">Available Tasks</h3>
+            <Badge variant="outline" className="text-xs">{availableTasks.length} available</Badge>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-2 sm:pb-0">
             {['all', 'daily', 'weekly', 'achievement', 'special'].map((cat) => (
               <Button
                 key={cat}
                 variant={filter === cat ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setFilter(cat)}
-                className="capitalize"
+                className="capitalize text-xs sm:text-sm whitespace-nowrap"
               >
                 {cat}
               </Button>
@@ -643,12 +643,12 @@ const TasksPanel = () => {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {availableTasks.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Target className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>No tasks available in this category</p>
-              <p className="text-sm">Check back later for new tasks!</p>
+            <div className="text-center py-6 sm:py-8 text-gray-500">
+              <Target className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-sm sm:text-base">No tasks available in this category</p>
+              <p className="text-xs sm:text-sm">Check back later for new tasks!</p>
             </div>
           ) : (
             availableTasks.map((task) => (
@@ -663,11 +663,11 @@ const TasksPanel = () => {
       </Card>
 
       {completedTasks.length > 0 && (
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <div className="flex items-center gap-2 mb-4">
             <CheckCircle className="w-5 h-5 text-green-500" />
-            <h3 className="font-semibold text-gray-800">Completed Tasks</h3>
-            <Badge className="bg-green-100 text-green-800">{completedTasks.length} completed</Badge>
+            <h3 className="font-semibold text-gray-800 text-sm sm:text-base">Completed Tasks</h3>
+            <Badge className="bg-green-100 text-green-800 text-xs">{completedTasks.length} completed</Badge>
           </div>
           
           <div className="space-y-3">
